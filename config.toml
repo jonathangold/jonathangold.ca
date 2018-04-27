@@ -1,0 +1,58 @@
+## Basic Configuration
+
+baseurl = "https://jonathangold.github.io/jonathangold.ca/"
+builddrafts = false
+canonifyurls = true
+relativeurls = true
+languageCode = "en-US"
+
+contentdir = "content"
+layoutdir = "layouts"
+publishdir = "docs"
+
+author = "Jonathan Gold"
+title = "Jon Writes Code"
+
+theme = "hugo-goa"
+
+## Hugo Built-in Features
+disqusShortname = "jonathangold-ca" # Comment out to disable Disqus.
+googleAnalytics = "XYZ"
+enableRobotsTXT = true
+
+## Site Settings
+[params]
+author = "Jonathan Gold"
+intro = "Adventures in Information Technology"
+description = "Golang, DevOps, Linux, FOSS"
+authorimage = "headshot.jpg"
+dateformat = "Jan 2, 2006"
+
+## Site Meta Settings
+[params.meta]
+description = "A technical blog devoted to DevOps and Open-Source Software"
+keywords = "golang,devops,foss,linux,developer"
+
+## Social Accounts
+[params.social]
+github = "jonathangold"
+twitter = "@JonWritesCode"
+email = "info@jonathangold.ca"
+
+## Extras
+[params.extra]
+copyright = "© 2016. Jonathan Gold. [Some Rights Reserved](http://creativecommons.org/licenses/by/3.0/)." 
+poweredby = true
+highlightjs = true
+
+## Main Menu
+[[menu.main]]
+    name = "blog"
+    weight = 100
+    identifier = "blog"
+    url = "/blog/"
+[[menu.main]]
+    name = "about"
+    identifier = "about"
+    weight = 200
+    url = "/about/"

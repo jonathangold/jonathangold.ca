@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Jon Writes Code</title>
+    <link>https://jonathangold.github.io/jonathangold.ca/</link>
+    <description>Recent content on Jon Writes Code</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-US</language>
+    <lastBuildDate>Fri, 27 Apr 2018 12:32:14 -0400</lastBuildDate>
+    
+	<atom:link href="https://jonathangold.github.io/jonathangold.ca/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>About Me</title>
+      <link>https://jonathangold.github.io/jonathangold.ca/about/</link>
+      <pubDate>Fri, 27 Apr 2018 12:32:14 -0400</pubDate>
+      
+      <guid>https://jonathangold.github.io/jonathangold.ca/about/</guid>
+      <description>I&amp;rsquo;ve been working on and off in IT for over a decade. When I&amp;rsquo;m not busy being a (sarcastic) ninja/rockstar, I can often be found performing cabaret magic, and generally making a fool of myself on stage.
+Thanks for stopping by.</description>
+    </item>
+    
+  </channel>
+</rss>
