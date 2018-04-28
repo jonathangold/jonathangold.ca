@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+<meta name="description" content="A technical blog devoted to DevOps and Open-Source Software">
+<meta name="keywords" content="golang,devops,foss,linux,developer">
+
+<base href="https://jonathangold.github.io/jonathangold.ca/">
+
+<title>Jon Writes Code</title>
+
+<meta name="generator" content="Hugo 0.31" />
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css">
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato:300,400|Roboto+Slab:400,700|Roboto:300,300i,400,400i,500,500i,700,700i">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://jonathangold.github.io/jonathangold.ca/css/main.css">
+
+
+
+
+<link rel="apple-touch-icon" sizes="180x180" href="../../apple-touch-icon.png">
+<link rel="icon" type="image/png" href="../../favicon-32x32.png" sizes="32x32">
+<link rel="icon" type="image/png" href="../../favicon-16x16.png" sizes="16x16">
+<link rel="manifest" href="../../manifest.json">
+<link rel="mask-icon" href="../../safari-pinned-tab.svg" color="#5bbad5">
+<meta name="theme-color" content="#ffffff">
+
+</head>
+<body lang="en-US">
+<div class="container">
+
+
+<header class="row text-left title">
+  <h1 class="title">AWS:Ec2 in Mgmt</h1>
+</header>
+<section id="category-pane" class="row meta">
+  
+  <div class="col-md-12">
+    <h6 class="text-left meta">
+        PUBLISHED ON APR 28, 2018 
+      
+    </h6>
+  </div>
+  
+</section>
+<section id="content-pane" class="row">
+  <div class="col-md-12 text-justify content">
+    <p>Before dealing with the nitty-gritty of the <a href="http://docs.aws.amazon.com/sdk-for-go/api/service/ec2/">EC2 API for Golang</a> (and boy is it gritty,) it will help to understand the basics of <a href="https://github.com/purpleidea/mgmt">mgmt</a> and how resources are implemented. Mgmt is an open-source event-based config management solution written entirely in Golang, based on a <a href="https://en.wikipedia.org/wiki/Directed_acyclic_graph">Directed Acyclic Graph</a> model. It is the brain-child of <a href="https://twitter.com/purpleidea">@purpleidea</a>, who maintains the project and provides mentoring to new contributors (myself included.) Mgmt&rsquo;s resource modules each define methods to watch, verify and change the state of any resources the user may need to maintain, as well as any relationships to other resources where appropriate. This is the story of my battle to write <a href="https://github.com/purpleidea/mgmt/blob/master/resources/aws_ec2.go">one of those modules</a>.
+<blockquote class="twitter-tweet" data-cards="hidden" data-lang="en">
+<p dir="ltr" lang="en">DAE think that the <a href="https://twitter.com/awscloud?ref_src=twsrc%5Etfw">@awscloud</a> EC2 <a href="https://twitter.com/hashtag/golang?src=hash&amp;ref_src=twsrc%5Etfw">#golang</a> API is gross?<a href="https://t.co/gdDFRyJJ1t">https://t.co/gdDFRyJJ1t</a></p>
+Happy to provide constructive criticism to aws engineers.</p>
+
+<p>— James Just James (@purpleidea) <a href="https://twitter.com/purpleidea/status/917287869340880896?ref_src=twsrc%5Etfw">October 9, 2017</a></blockquote>
+<script async src="//platform.twitter.com/widgets.js" charset="utf-8"></script></p>
+
+<p>With that out of the way, let&rsquo;s dive into the implementation. There are two crucial methods that <em>must</em> be implemented in order to get a resource working in mgmt; <a href="https://github.com/purpleidea/mgmt/blob/master/docs/resource-guide.md#watch">Watch()</a> and <a href="https://github.com/purpleidea/mgmt/blob/master/docs/resource-guide.md#checkapply">CheckApply()</a>. Both methods do what they say. Watch() monitors the resource and sends an event when it detects that the state has changed, and CheckApply() checks the state and, if necessary, applies the actions required to bring the resource into the desired state.</p>
+
+<p>One thing I feel compelled to point out is that, like all of Amazon&rsquo;s APIs, the AWS SDK for Golang is auto-generated, as is its documentation. While this undoubtedly saves Amazon&rsquo;s developers countless hours of work, it makes programming against the API significantly more frustrating than it ought to be.</p>
+
+<p><img src="img/it-crowd-maurice-moss-frustration.gif" alt="" width="500" height="289" /></p>
+
+<p>I began my implementation with the CheckApply() method, as that tends to be the quickest way to a working proof-of-concept. The check portion of the method needs to query the API for any instance that matches the name specified by the user. If it finds one, it then needs to check its state against the definition. If the state matches, we are done. That was easy.</p>
+
+<p>If the resource is not in the correct state, we continue to the apply portion of the method. Here&rsquo;s where the real work gets done. Apply defines the actions needed to bring the resource into the desired state. It consists of the logic required to create, start, stop and terminate EC2 instances. Once I wrapped my head around the API (which was no small feat,) this code was straight-forward to write, and was fairly close to the examples available in the documentation.</p>
+
+<p>Once the CheckApply() method was finished, I could actually run it using mgmt&rsquo;s poll meta-parameter. Poll essentially bypasses the Watch() method, and just repeats CheckApply() on an interval defined by the user. It worked! There were a few bugs work out in the logic, but once they were addressed, I could be certain that no matter what actions I took, mgmt made sure that the resources I defined would always return to the correct state.</p>
+
+<p><img src="img/great-success-gif.gif" alt="" width="476" height="360" /></p>
+
+<p>The next step was to implement Watch(). This would prove to be more difficult. Until I impliment an http server to receive events from AWS CloudWatch we have to rely on the APIs WaitUntilInstance&hellip; methods to alert us that the state may have changed. I say may, because these methods return after about ten minutes, whether or not the state has changed. It would be really helpful if the API returned an error, which we could use to trigger the method to retry. When the wait method returns, we actually have to check whether the state actually changed, or if it just timed out, by rechecking the state. If the state really has changed, we send an event to the engine.</p>
+
+<p>There are some issues with this approach, including two subtle races. The first consists of notifying the engine that we&rsquo;re running only when the watching actually begins (rather than when we ask it to.) The second is sending events only when we are sure the watching has restarted after detecting a change. Luckily <a href="https://twitter.com/purpleidea">@purpleidea</a> recently demonstrated a <a href="https://github.com/purpleidea/mgmt/blob/master/examples/longpoll/redirect-server.go">race-free HTTP server</a> implementation that I may use in a future patch to leverage <a href="https://aws.amazon.com/cloudwatch/">AWS CloudWatch</a> events in Watch().</p>
+
+<p>Between navigating the auto-generated API documentation and puzzling together the logic required to watch the resources reliably, writing this module was a challenge. If the API were a little more sane, I might have saved a little of my own sanity. I couldn&rsquo;t have done it without <a href="https://twitter.com/purpleidea">@purpleidea</a>&rsquo;s awesome mentoring and the community he&rsquo;s built around mgmt. Come join us on freenode at #mgmtconfig and on <a href="https://github.com/purpleidea/mgmt">GitHub</a>.</p>
+
+  </div>
+</section>
+<section id="tag-pane" class="row meta">
+  
+  <div class="col-md-12">
+    <h6 class="text-right meta">
+      
+    </h6>
+  </div>
+  
+</section>
+
+
+
+
+<div id="disqus_thread"></div>
+<script>
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jonathangold-ca" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+<section id="menu-pane" class="row menu text-center">
+  
+  
+  
+  
+  
+  <h4 class="text-center"><a class="menu-item" href="https://jonathangold.github.io/jonathangold.ca/">home</a></h4>
+</section>
+
+
+
+<footer class="row text-center footer">
+  <hr />
+  
+  <h6 class="text-center copyright">© 2016. Jonathan Gold. <a href="http://creativecommons.org/licenses/by/3.0/">Some Rights Reserved</a>.</h6>
+  
+  <h6 class="text-center powered">Powered by <a href="https://gohugo.io/">Hugo</a> &amp; <a href="https://github.com/shenoybr/hugo-goa">Goa</a>.</h6>
+  
+  
+</footer>
+
+</div>
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+  
+
+<script type="text/javascript">
+hljs.initHighlightingOnLoad();
+</script>
+
+
+
+
+<script>
+window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+ga('create', 'XYZ', 'auto');
+ga('send', 'pageview');
+</script>
+<script async src='//www.google-analytics.com/analytics.js'></script>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
+
+
