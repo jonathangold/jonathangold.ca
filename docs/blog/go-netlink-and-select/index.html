@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+<meta name="description" content="A technical blog devoted to DevOps and Open-Source Software">
+<meta name="keywords" content="golang,devops,foss,linux,developer">
+
+<base href="https://jonathangold.ca">
+
+<title>Jon Writes Code</title>
+
+<meta name="generator" content="Hugo 0.37.1" />
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css">
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato:300,400|Roboto+Slab:400,700|Roboto:300,300i,400,400i,500,500i,700,700i">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://jonathangold.ca/css/main.css">
+
+
+
+
+<link rel="apple-touch-icon" sizes="180x180" href="../../apple-touch-icon.png">
+<link rel="icon" type="image/png" href="../../favicon-32x32.png" sizes="32x32">
+<link rel="icon" type="image/png" href="../../favicon-16x16.png" sizes="16x16">
+<link rel="manifest" href="../../manifest.json">
+<link rel="mask-icon" href="../../safari-pinned-tab.svg" color="#5bbad5">
+<meta name="theme-color" content="#ffffff">
+
+</head>
+<body lang="en-US">
+<div class="container">
+
+
+<header class="row text-left title">
+  <h1 class="title">Go Netlink and Select</h1>
+</header>
+<section id="category-pane" class="row meta">
+  
+  <div class="col-md-12">
+    <h6 class="text-left meta">
+        PUBLISHED ON MAY 14, 2018 
+      
+    </h6>
+  </div>
+  
+</section>
+<section id="content-pane" class="row">
+  <div class="col-md-12 text-justify content">
+    <p>Go is a wonderful programming language, nestled comfortably in between
+low-level languages like C or Rust, and higher level languages like Python or
+Ruby. The convenience one gains by doing systems programming in Go, thanks to
+perks like syntactic simplicity and first-class concurrency, is offset by
+repetitive error handling, lack of direct memory access, and a few glaring
+omissions from the standard library (generics and binary literals come to mind.)</p>
+
+<p>This article will describe the process of writing the network resource for
+<a href="http://github.com/purpleidea/mgmt">mgmt</a>, a tool for next generation
+distributed, event-driven, parallel config management. The network resource
+is tasked with applying the prescribed network configuration, monitoring the
+defined device, and correcting its state if it diverges from the configuration.
+In simpler terms, it sets up a network device and makes sure it stays set up
+exactly how you want.</p>
+
+<p>Unfortunately Go&rsquo;s net library is only useful when it comes to checking the
+network state, and lacks the ability to apply changes to an interface, so it
+was necessary to venture outside the comfort of the standard library and employ
+a more powerful solution. Enter Netlink.</p>
+
+<p>There are several libraries available to interface with kernel netlink sockets
+at various levels of abstraction, but none of them are without problems. For
+example, <code>vishvananda/netlink</code> has a &ldquo;subscribe&rdquo; function, which is supposed
+to subscribe to events on a netlink socket. Unfortunately the package fails to
+clean up spawned goroutines and their api design leads to a race, where data
+and errors may not be serialized in the correct order. Another package,
+<code>mdlayher/netlink</code>, gets one step closer to a correct implementation but the
+<code>conn.Receive()</code> method will block indefinitely until a message arrives on the
+socket. Given these shortcomings, it was necessary to roll my own netlink
+socket listener. I was however, able to use some helper functions from
+<code>vishvananda/netlink</code> when it came time to apply changes to the interface.</p>
+
+<p>Enter <code>unix.Select()</code>. Systems programmers should already be familiar with
+<code>select(2)</code>, but for those that aren&rsquo;t, here&rsquo;s a quote from the man page:</p>
+
+<pre><code>select() and pselect() allow a program to monitor multiple file
+descriptors, waiting until one or more of the file descriptors become
+&quot;ready&quot; for some class of I/O operation (e.g., input possible).  A
+file descriptor is considered ready if it is possible to perform a
+corresponding I/O operation (e.g., read(2) without blocking, or a
+sufficiently small write(2)).
+</code></pre>
+
+<p>On linux, everything is a file, and that includes sockets (netlink or
+otherwise.) So, we can use select to watch the socket, and return when an event
+occurs. Simple enough. In fact, this is exactly what <code>mdlayher/netlink</code> does.
+The problem is that when you want to exit, the select will block indefinitely.
+On some systems, select will return when the file descriptor is destroyed, but
+that is undefined behavior, and doesn&rsquo;t happen on many linux systems.</p>
+
+<p>The solution is the Unix <code>Pipe</code> pattern, where we employ a second file
+descriptor to signal select when it&rsquo;s time to close. The pipe in this case, is
+an ordinary Unix socket, stored in the temp filesystem. With both file
+descriptors in place, we can call select, using <code>golang.org/x/sys/unix</code>&rsquo;s
+<code>Select()</code> function, and pass it a set containing file descriptors for both
+netlink and pipe sockets. Then, to unblock <code>select()</code> when we want to shut
+down, all we have to do is close the netlink socket, and then send an empty
+message to the pipe socket. This will cause select to return and our program
+can exit cleanly. Here&rsquo;s what that looks like:</p>
+
+<pre><code>// shutdown closes the event file descriptor and unblocks receive by sending
+// a message to the pipe file descriptor. It must be called before close, and
+// should only be called once.
+func (obj *socketSet) shutdown() error {
+	// close the event socket so no more events are produced
+	if err := unix.Close(obj.fdEvents); err != nil {
+		return err
+	}
+	// send a message to the pipe to unblock select
+	return unix.Sendto(obj.fdPipe, nil, 0, &amp;unix.SockaddrUnix{
+		Name: path.Join(obj.pipeFile),
+	})
+}
+
+// close closes the pipe file descriptor. It must only be called after
+// shutdown has closed fdEvents, and unblocked receive. It should only be
+// called once.
+func (obj *socketSet) close() error {
+	return unix.Close(obj.fdPipe)
+}
+
+// receive waits for bytes from fdEvents and parses them into a slice of
+// netlink messages. It will block until an event is produced, or shutdown
+// is called.
+func (obj *socketSet) receive() ([]syscall.NetlinkMessage, error) {
+	// Select will return when any fd in fdSet (fdEvents and fdPipe) is ready
+	// to read.
+	_, err := unix.Select(obj.nfd(), obj.fdSet(), nil, nil, nil)
+	if err != nil {
+		// if a system interrupt is caught
+		if err == unix.EINTR { // signal interrupt
+			return nil, nil
+		}
+		return nil, errwrap.Wrapf(err, &quot;error selecting on fd&quot;)
+	}
+	// receive the message from the netlink socket into b
+	b := make([]byte, os.Getpagesize())
+	n, _, err := unix.Recvfrom(obj.fdEvents, b, unix.MSG_DONTWAIT) // non-blocking receive
+	if err != nil {
+		// if fdEvents is closed
+		if err == unix.EBADF { // bad file descriptor
+			return nil, nil
+		}
+		return nil, errwrap.Wrapf(err, &quot;error receiving messages&quot;)
+	}
+	// if we didn't get enough bytes for a header, something went wrong
+	if n &lt; unix.NLMSG_HDRLEN {
+		return nil, fmt.Errorf(&quot;received short header&quot;)
+	}
+	b = b[:n] // truncate b to message length
+	// use syscall to parse, as func does not exist in x/sys/unix
+	return syscall.ParseNetlinkMessage(b)
+}
+</code></pre>
+
+<p>If you are interested in the details of my implementation, check out <a href="https://github.com/jonathangold/mgmt/blob/master/resources/net.go">the source</a> for context
+and if you have any questions, send me an <a href="mailto:info@jonathangold.ca">email</a>, or ping me on twitter <a href="https://twitter.com/JonWritesCode">@JonWritesCode</a>.</p>
+
+  </div>
+</section>
+<section id="tag-pane" class="row meta">
+  
+  <div class="col-md-12">
+    <h6 class="text-right meta">
+      
+    </h6>
+  </div>
+  
+</section>
+
+
+
+
+<div id="disqus_thread"></div>
+<script>
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jonathangold-ca" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+<section id="menu-pane" class="row menu text-center">
+  
+  
+  <span><a class="menu-item" href="https://jonathangold.ca/blog/aws-ec2-in-mgmt/">&lt; prev | </a></span>
+  
+  
+  <span><a class="menu-item" href="../../blog">blog</a></span>
+  
+  
+  
+  <h4 class="text-center"><a class="menu-item" href="https://jonathangold.ca">home</a></h4>
+</section>
+
+
+
+<footer class="row text-center footer">
+  <hr />
+  
+  <h6 class="text-center copyright">© 2016. Jonathan Gold. <a href="http://creativecommons.org/licenses/by/3.0/">Some Rights Reserved</a>.</h6>
+  
+  <h6 class="text-center powered">Powered by <a href="https://gohugo.io/">Hugo</a> &amp; <a href="https://github.com/shenoybr/hugo-goa">Goa</a>.</h6>
+  
+  
+</footer>
+
+</div>
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+  
+
+<script type="text/javascript">
+hljs.initHighlightingOnLoad();
+</script>
+
+
+
+
+<script>
+window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+ga('create', 'XYZ', 'auto');
+ga('send', 'pageview');
+</script>
+<script async src='//www.google-analytics.com/analytics.js'></script>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
+
+
