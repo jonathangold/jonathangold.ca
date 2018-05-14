@@ -1,6 +1,6 @@
 ## Basic Configuration
 
-baseurl = "https://jonathangold.github.io/jonathangold.ca/"
+baseurl = "https://jonathangold.ca"
 builddrafts = false
 canonifyurls = true
 relativeurls = true

@@ -2,21 +2,21 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>Blogs on Jon Writes Code</title>
-    <link>https://jonathangold.github.io/jonathangold.ca/blog/</link>
+    <link>https://jonathangold.ca/blog/</link>
     <description>Recent content in Blogs on Jon Writes Code</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-US</language>
     <lastBuildDate>Sat, 28 Apr 2018 00:11:43 -0400</lastBuildDate>
     
-	<atom:link href="https://jonathangold.github.io/jonathangold.ca/blog/index.xml" rel="self" type="application/rss+xml" />
+	<atom:link href="https://jonathangold.ca/blog/index.xml" rel="self" type="application/rss+xml" />
     
     
     <item>
       <title>AWS:Ec2 in Mgmt</title>
-      <link>https://jonathangold.github.io/jonathangold.ca/blog/aws-ec2-in-mgmt/</link>
+      <link>https://jonathangold.ca/blog/aws-ec2-in-mgmt/</link>
       <pubDate>Sat, 28 Apr 2018 00:11:43 -0400</pubDate>
       
-      <guid>https://jonathangold.github.io/jonathangold.ca/blog/aws-ec2-in-mgmt/</guid>
+      <guid>https://jonathangold.ca/blog/aws-ec2-in-mgmt/</guid>
       <description>Before dealing with the nitty-gritty of the EC2 API for Golang (and boy is it gritty,) it will help to understand the basics of mgmt and how resources are implemented. Mgmt is an open-source event-based config management solution written entirely in Golang, based on a Directed Acyclic Graph model. It is the brain-child of @purpleidea, who maintains the project and provides mentoring to new contributors (myself included.) Mgmt&amp;rsquo;s resource modules each define methods to watch, verify and change the state of any resources the user may need to maintain, as well as any relationships to other resources where appropriate.</description>
     </item>
     
