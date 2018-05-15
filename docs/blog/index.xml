@@ -6,10 +6,20 @@
     <description>Recent content in Blogs on Jon Writes Code</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-US</language>
-    <lastBuildDate>Mon, 14 May 2018 11:59:07 -0400</lastBuildDate>
+    <lastBuildDate>Tue, 15 May 2018 00:56:21 -0400</lastBuildDate>
     
 	<atom:link href="https://jonathangold.ca/blog/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Waiting for a Systemd Job to Complete</title>
+      <link>https://jonathangold.ca/blog/waiting-for-systemd-job-to-complete/</link>
+      <pubDate>Tue, 15 May 2018 00:56:21 -0400</pubDate>
+      
+      <guid>https://jonathangold.ca/blog/waiting-for-systemd-job-to-complete/</guid>
+      <description>While writing the mount resource for mgmt I needed to restart the local-fs.target and remote-fs.target systemd units in order to mount any new fstab entries. To restart a unit using godbus/dbus you can do the following:
+// conn is a *dbus.Conn connection sd1 := conn.Object( &amp;quot;org.freedesktop.systemd1&amp;quot;, dbus.ObjectPath(&amp;quot;/org/freedesktop/systemd1/&amp;quot;), ) if call := sd1.Call( &amp;quot;org.freedesktop.systemd1.Manager.RestartUnit&amp;quot;, 0, &amp;quot;local-fs.target&amp;quot;, &amp;quot;fail&amp;quot;, ); call.Err != nil { return errors.Wrapf(call.Err, &amp;quot;error restarting unit: %s&amp;quot;, unit) }  When you employ a dbus call to change the state of a systemd unit, it will return right away, likely before the state has changed.</description>
+    </item>
     
     <item>
       <title>Go Netlink and Select</title>

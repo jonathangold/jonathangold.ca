@@ -62,8 +62,8 @@ perks like syntactic simplicity and first-class concurrency, is offset by
 repetitive error handling, lack of direct memory access, and a few glaring
 omissions from the standard library (generics and binary literals come to mind.)</p>
 
-<p>This article will describe the process of writing the network resource for
-<a href="http://github.com/purpleidea/mgmt">mgmt</a>, a tool for next generation
+<p>This article will describe one challenge I encountered when writing the network
+resource for <a href="http://github.com/purpleidea/mgmt">mgmt</a>, a tool for next generation
 distributed, event-driven, parallel config management. The network resource
 is tasked with applying the prescribed network configuration, monitoring the
 defined device, and correcting its state if it diverges from the configuration.
@@ -110,7 +110,7 @@ descriptor to signal select when it&rsquo;s time to close. The pipe in this case
 an ordinary Unix socket, stored in the temp filesystem. With both file
 descriptors in place, we can call select, using <code>golang.org/x/sys/unix</code>&rsquo;s
 <code>Select()</code> function, and pass it a set containing file descriptors for both
-netlink and pipe sockets. Then, to unblock <code>select()</code> when we want to shut
+netlink and pipe sockets. Then, to unblock select when we want to shut
 down, all we have to do is close the netlink socket, and then send an empty
 message to the pipe socket. This will cause select to return and our program
 can exit cleanly. Here&rsquo;s what that looks like:</p>
@@ -171,7 +171,8 @@ func (obj *socketSet) receive() ([]syscall.NetlinkMessage, error) {
 </code></pre>
 
 <p>If you are interested in the details of my implementation, check out <a href="https://github.com/jonathangold/mgmt/blob/master/resources/net.go">the source</a> for context
-and if you have any questions, send me an <a href="mailto:info@jonathangold.ca">email</a>, or ping me on twitter <a href="https://twitter.com/JonWritesCode">@JonWritesCode</a>.</p>
+and if you have any questions, hit me up in the comments below, or ping me on twitter
+<a href="https://twitter.com/JonWritesCode">@JonWritesCode</a></p>
 
   </div>
 </section>
@@ -219,6 +220,8 @@ and if you have any questions, send me an <a href="mailto:info@jonathangold.ca">
   
   <span><a class="menu-item" href="../../blog">blog</a></span>
   
+  
+  <span><a class="menu-item" href="https://jonathangold.ca/blog/waiting-for-systemd-job-to-complete/"> | next &gt;</a></span>
   
   
   <h4 class="text-center"><a class="menu-item" href="https://jonathangold.ca">home</a></h4>

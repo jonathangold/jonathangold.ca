@@ -11,8 +11,8 @@ perks like syntactic simplicity and first-class concurrency, is offset by
 repetitive error handling, lack of direct memory access, and a few glaring
 omissions from the standard library (generics and binary literals come to mind.)
 
-This article will describe the process of writing the network resource for
-[mgmt](http://github.com/purpleidea/mgmt), a tool for next generation
+This article will describe one challenge I encountered when writing the network
+resource for [mgmt](http://github.com/purpleidea/mgmt), a tool for next generation
 distributed, event-driven, parallel config management. The network resource
 is tasked with applying the prescribed network configuration, monitoring the
 defined device, and correcting its state if it diverges from the configuration.
@@ -60,7 +60,7 @@ descriptor to signal select when it's time to close. The pipe in this case, is
 an ordinary Unix socket, stored in the temp filesystem. With both file
 descriptors in place, we can call select, using `golang.org/x/sys/unix`'s
 `Select()` function, and pass it a set containing file descriptors for both
-netlink and pipe sockets. Then, to unblock `select()` when we want to shut
+netlink and pipe sockets. Then, to unblock select when we want to shut
 down, all we have to do is close the netlink socket, and then send an empty
 message to the pipe socket. This will cause select to return and our program
 can exit cleanly. Here's what that looks like:
@@ -122,4 +122,5 @@ func (obj *socketSet) receive() ([]syscall.NetlinkMessage, error) {
 ```
 
 If you are interested in the details of my implementation, check out [the source](https://github.com/jonathangold/mgmt/blob/master/resources/net.go) for context
-and if you have any questions, send me an [email](mailto:info@jonathangold.ca), or ping me on twitter [@JonWritesCode](https://twitter.com/JonWritesCode).
+and if you have any questions, hit me up in the comments below, or ping me on twitter
+[@JonWritesCode](https://twitter.com/JonWritesCode)
