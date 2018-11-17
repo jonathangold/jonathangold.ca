@@ -3,6 +3,11 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   
   <url>
+    <loc>https://jonathangold.ca/blog/gitlab-ci-with-gcr-and-gke/</loc>
+    <lastmod>2018-11-17T12:00:00-05:00</lastmod>
+  </url>
+  
+  <url>
     <loc>https://jonathangold.ca/blog/waiting-for-systemd-job-to-complete/</loc>
     <lastmod>2018-05-15T00:56:21-04:00</lastmod>
   </url>
@@ -24,7 +29,7 @@
   
   <url>
     <loc>https://jonathangold.ca/blog/</loc>
-    <lastmod>2018-05-15T00:56:21-04:00</lastmod>
+    <lastmod>2018-11-17T12:00:00-05:00</lastmod>
     <priority>0</priority>
   </url>
   
@@ -35,7 +40,7 @@
   
   <url>
     <loc>https://jonathangold.ca/</loc>
-    <lastmod>2018-05-15T00:56:21-04:00</lastmod>
+    <lastmod>2018-11-17T12:00:00-05:00</lastmod>
     <priority>0</priority>
   </url>
   

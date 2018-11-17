@@ -6,10 +6,21 @@
     <description>Recent content on Jon Writes Code</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-US</language>
-    <lastBuildDate>Tue, 15 May 2018 00:56:21 -0400</lastBuildDate>
+    <lastBuildDate>Sat, 17 Nov 2018 12:00:00 -0500</lastBuildDate>
     
 	<atom:link href="https://jonathangold.ca/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Using Gitlab-CI with GCR and GKE</title>
+      <link>https://jonathangold.ca/blog/gitlab-ci-with-gcr-and-gke/</link>
+      <pubDate>Sat, 17 Nov 2018 12:00:00 -0500</pubDate>
+      
+      <guid>https://jonathangold.ca/blog/gitlab-ci-with-gcr-and-gke/</guid>
+      <description>A key part of any CI/CD pipeline is getting your application from the build stage into your staging and production environments. We&amp;rsquo;re going to explore how to approach this problem using Gitlab-CI, Google Container Registry and Google Kubernetes Engine.
+Let&amp;rsquo;s say you have an application living on Gitlab, and you want to release an image on Google Container Registry, and deploy it to your Kubernetes cluster automagically.
+Thankfully, not just anyone can deploy containers on your cluster, so we&amp;rsquo;ll have to create a Google Cloud Platform service account with the appropriate roles.</description>
+    </item>
     
     <item>
       <title>Waiting for a Systemd Job to Complete</title>

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+<meta name="description" content="A technical blog devoted to DevOps and Open-Source Software">
+<meta name="keywords" content="golang,devops,foss,linux,developer">
+
+<base href="https://jonathangold.ca">
+
+<title>Jon Writes Code</title>
+
+<meta name="generator" content="Hugo 0.37.1" />
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css">
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato:300,400|Roboto+Slab:400,700|Roboto:300,300i,400,400i,500,500i,700,700i">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://jonathangold.ca/css/main.css">
+
+
+
+
+<link rel="apple-touch-icon" sizes="180x180" href="../../apple-touch-icon.png">
+<link rel="icon" type="image/png" href="../../favicon-32x32.png" sizes="32x32">
+<link rel="icon" type="image/png" href="../../favicon-16x16.png" sizes="16x16">
+<link rel="manifest" href="../../manifest.json">
+<link rel="mask-icon" href="../../safari-pinned-tab.svg" color="#5bbad5">
+<meta name="theme-color" content="#ffffff">
+
+</head>
+<body lang="en-US">
+<div class="container">
+
+
+<header class="row text-left title">
+  <h1 class="title">Using Gitlab-CI with GCR and GKE</h1>
+</header>
+<section id="category-pane" class="row meta">
+  
+  <div class="col-md-12">
+    <h6 class="text-left meta">
+        PUBLISHED ON NOV 17, 2018 
+      
+    </h6>
+  </div>
+  
+</section>
+<section id="content-pane" class="row">
+  <div class="col-md-12 text-justify content">
+    <p>A key part of any CI/CD pipeline is getting your application from the build stage
+into your staging and production environments. We&rsquo;re going to explore how to
+approach this problem using Gitlab-CI, Google Container Registry and Google
+Kubernetes Engine.</p>
+
+<p>Let&rsquo;s say you have an application living on Gitlab, and you want to release an image
+on Google Container Registry, and deploy it to your Kubernetes cluster automagically.</p>
+
+<p>Thankfully, not just anyone can deploy containers on your cluster, so we&rsquo;ll have
+to create a Google Cloud Platform service account with the appropriate roles.</p>
+
+<ul>
+<li>Go to the <a href="https://console.cloud.google.com/iam-admin/serviceaccounts">Service Accounts</a> page in your Google Cloud Project</li>
+<li>Create a new service account, with the following roles:
+
+<ul>
+<li>Kubernetes Admin</li>
+<li>Storage Admin</li>
+</ul></li>
+<li>Generate a JSON key for that account and save it somewhere convenient</li>
+<li>in a shell, run:
+
+<ul>
+<li><code>$ cat &lt;YOUR_JSON_KEY_FILE&gt; | base64 | xclip -sel clip</code></li>
+</ul></li>
+</ul>
+
+<p>The last command will copy your JSON key to the clipboard after encoding it to
+base64. This is not a substitute for good security practices, and would only foil
+the casual snoop. Make sure you never expose the key, and treat it as if it were
+plain text, because it might as well be. Follow <a href="https://gitlab.com/gitlab-org/gitlab-ce/issues/13784">this conversation on Gitlab</a>
+for more info.</p>
+
+<p>Now that we&rsquo;ve copied our key, we need to store it as a CI/CD variable in Gitlab,
+and create some additional ones to configure the runner with our project and cluster
+information. Open up your project&rsquo;s CI/CD settings and expand the Variables section,
+and add the followind entries:</p>
+
+<ul>
+<li><code>GCP_SERVICE_KEY</code>: paste your base64 encoded key from the previous step</li>
+<li><code>GCP_PROJECT_NAME</code>: the name of your google cloud project</li>
+<li><code>GCR_REPO</code>: the full name of your container image (ie. gcr.io/foo/bar)</li>
+<li><code>GKE_CLUSTER_ZONE</code>: the zone where your Kubernetes controller resides</li>
+<li><code>GKE_CLUSTER_NAME</code>: the name of your GKE cluster</li>
+</ul>
+
+<p>If you have a regional cluster, replace <code>GKE_CLUSTER_ZONE</code> with <code>GKE_CLUSTER_REGION</code>,
+and use your Google Cloud cluster region as the value.</p>
+
+<p>Once you have the variables set up, it&rsquo;s time to put them to work and write your
+<code>.gitlab-ci.yml</code> file. First we&rsquo;ll define a container to build our image using
+<a href="https://hub.docker.com/_/docker/">Docker-in-Docker</a> Here&rsquo;s what that looks like:</p>
+
+<pre><code>build:
+    stage: build
+    image: docker:latest
+    before_script:
+        - docker login -u _json_key -p &quot;$(echo $GCP_SERVICE_KEY | base64 -d)&quot; https://gcr.io
+    script:
+        - docker build --pull -t ${GCR_REPO}:${CI_BUILD_REF} -f Dockerfile .
+        - docker push ${GCR_REPO}:${CI_BUILD_REF}
+    services:
+        - docker:dind
+    when: manual
+</code></pre>
+
+<p>Next, we&rsquo;ll spin up a debian runner to deploy our image to our GKE cluster using
+the following code:</p>
+
+<pre><code>deploy:
+    stage: deploy
+    before_script:
+        - apt-get update &amp;&amp; apt-get install apt-transport-https
+        - curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg |
+          apt-key add -
+        - echo &quot;deb https://packages.cloud.google.com/apt cloud-sdk-stretch main&quot; |
+          tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+        - echo &quot;deb https://apt.kubernetes.io/ kubernetes-stretch main&quot; |
+          tee -a /etc/apt/sources.list.d/kubernetes.list
+        - apt-get update &amp;&amp;  apt-get install kubectl google-cloud-sdk -y
+        - echo &quot;$(echo $GCP_SERVICE_KEY | base64 -di)&quot; &gt; keyfile
+        - gcloud --quiet auth activate-service-account --key-file keyfile
+        - gcloud --quiet config set project ${GCP_PROJECT_NAME}
+        - gcloud --quiet config set container/cluster ${GKE_CLUSTER_NAME}
+        - gcloud --quiet config set compute/zone ${GKE_CLUSTER_ZONE}
+        - gcloud --quiet container clusters get-credentials ${GKE_CLUSTER_NAME}
+    script:
+        - kubectl apply -f deployment.yaml
+    when: manual
+</code></pre>
+
+<p>If you have a regional cluster, replace:</p>
+
+<pre><code>- gcloud --quiet config set compute/zone ${GKE_CLUSTER_ZONE}
+</code></pre>
+
+<p>with:</p>
+
+<pre><code>- gcloud --quiet config set compute/region ${GKE_CLUSTER_REGION}
+</code></pre>
+
+<p>The first half of the before_script installs <code>google-cloud-sdk</code> and <code>kubectl</code>,
+then decodes the service key into a file and use it to authenticate with Google.
+The next part configures your project and cluster parameters, and the last line
+generates your <code>.kube/config</code>.</p>
+
+<p>How you choose to deploy your app is up to you. You can use <code>kubectl apply</code>,
+like the example above, but you&rsquo;d be better off using <a href="https://helm.sh">Helm</a>. If you want to
+install the Helm client, add the following to your before_script:</p>
+
+<pre><code>- wget https://raw.githubusercontent.com/helm/helm/master/scripts/get -O get_helm.sh
+- chmod +x get_helm.sh
+- ./get_helm.sh
+- helm init --client-only
+</code></pre>
+
+<p>If you want to avoid installing <code>google-cloud-sdk</code> on your Gitlab runner,
+you can instead generate the kubeconfig on your own machine using the same gcloud
+commands, save your (encoded) <code>./kube/config</code> to a CI/CD variable, and decode it
+into the <code>$KUBECONFIG</code> variable, which Gitlab reserves for your kubernetes
+configuration. Or you can forget about the base64 encoding entirely and load it
+straight into <code>$KUBECONFIG</code>.</p>
+
+<p>Hopefully this has saved you some pain, or better yet, given you a useful tool
+to automate your CI/CD strategy. Come back soon for more!</p>
+
+  </div>
+</section>
+<section id="tag-pane" class="row meta">
+  
+  <div class="col-md-12">
+    <h6 class="text-right meta">
+      
+    </h6>
+  </div>
+  
+</section>
+
+
+
+
+<div id="disqus_thread"></div>
+<script>
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jonathangold-ca" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+<section id="menu-pane" class="row menu text-center">
+  
+  
+  <span><a class="menu-item" href="https://jonathangold.ca/blog/waiting-for-systemd-job-to-complete/">&lt; prev | </a></span>
+  
+  
+  <span><a class="menu-item" href="../../blog">blog</a></span>
+  
+  
+  
+  <h4 class="text-center"><a class="menu-item" href="https://jonathangold.ca">home</a></h4>
+</section>
+
+
+
+<footer class="row text-center footer">
+  <hr />
+  
+  <h6 class="text-center copyright">© 2016. Jonathan Gold. <a href="http://creativecommons.org/licenses/by/3.0/">Some Rights Reserved</a>.</h6>
+  
+  <h6 class="text-center powered">Powered by <a href="https://gohugo.io/">Hugo</a> &amp; <a href="https://github.com/shenoybr/hugo-goa">Goa</a>.</h6>
+  
+  
+</footer>
+
+</div>
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+  
+
+<script type="text/javascript">
+hljs.initHighlightingOnLoad();
+</script>
+
+
+
+
+<script>
+window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+ga('create', 'UA-51063465-1', 'auto');
+ga('send', 'pageview');
+</script>
+<script async src='//www.google-analytics.com/analytics.js'></script>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
+
+
